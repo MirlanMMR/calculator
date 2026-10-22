@@ -455,7 +455,12 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     private fun digit(d: String) {
         val s = state
         if (s.waitingForOperand || s.justEvaluated || s.display.toDoubleOrNull() == null || s.display == "0") {
-            state = s.copy(display = d, waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0)
+            state = s.copy(
+                display = d, waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0,
+                expression = if (s.justEvaluated) "" else s.expression,
+                operand1 = if (s.justEvaluated) null else s.operand1,
+                operator = if (s.justEvaluated) null else s.operator
+            )
             return
         }
         if (s.display.length >= 12) return
@@ -467,7 +472,12 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     private fun decimal() {
         val s = state
         if (s.waitingForOperand || s.justEvaluated || s.display.toDoubleOrNull() == null) {
-            state = s.copy(display = "0.", waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0)
+            state = s.copy(
+                display = "0.", waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0,
+                expression = if (s.justEvaluated) "" else s.expression,
+                operand1 = if (s.justEvaluated) null else s.operand1,
+                operator = if (s.justEvaluated) null else s.operator
+            )
             return
         }
         if ("." in s.display) return

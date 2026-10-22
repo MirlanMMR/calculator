@@ -29,7 +29,7 @@ import kotlin.math.tan
 
 data class HistoryEntry(val expr: String, val result: String)
 
-sealed class Screen { object Calculator : Screen(); object LayoutPicker : Screen() }
+sealed class Screen { object Calculator : Screen(); object LayoutPicker : Screen(); object History : Screen() }
 
 data class CalcState(
     val display: String = "0",
@@ -37,12 +37,19 @@ data class CalcState(
     val operand1: Double? = null,
     val operator: String? = null,
     val waitingForOperand: Boolean = false,
-    val justEvaluated: Boolean = false
+    val justEvaluated: Boolean = false,
+    val cursorFromEnd: Int = 0
 )
 
 class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
 
-    private companion object { const val MIN_PAGES = 3 }
+    private companion object {
+        const val MIN_PAGES = 3
+        val EDIT_KEYS = setOf(
+            CalcKey.N0, CalcKey.N1, CalcKey.N2, CalcKey.N3, CalcKey.N4, CalcKey.N5,
+            CalcKey.N6, CalcKey.N7, CalcKey.N8, CalcKey.N9, CalcKey.Decimal, CalcKey.Backspace
+        )
+    }
 
     private val prefs = app.getSharedPreferences("calc_prefs", Context.MODE_PRIVATE)
 
@@ -78,12 +85,13 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     fun pasteNumber(text: String) {
         val m = Regex("-?\\d+(\\.\\d+)?").find(text.replace(Regex("[\\s\u00A0]"), "").replace(',', '.')) ?: return
         val v = m.value.take(15)
-        state = state.copy(display = v, waitingForOperand = false, justEvaluated = false)
+        state = state.copy(display = v, waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0)
         normalizePages()
     }
 
     fun useHistory(e: HistoryEntry) {
-        state = state.copy(display = e.result, justEvaluated = true, waitingForOperand = false)
+        currentScreen = Screen.Calculator
+        state = CalcState(display = e.result, justEvaluated = true)
         normalizePages()
     }
 
@@ -200,12 +208,15 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun encodePage(s: CalcState) =
         listOf(s.display, s.expression, s.operand1?.toString() ?: "", s.operator ?: "",
-            s.waitingForOperand.toString(), s.justEvaluated.toString()).joinToString("\t")
+            s.waitingForOperand.toString(), s.justEvaluated.toString(), s.cursorFromEnd.toString()).joinToString("\t")
 
     private fun decodePage(l: String): CalcState? {
         val p = l.split("\t")
-        if (p.size != 6) return null
-        return CalcState(p[0], p[1], p[2].toDoubleOrNull(), p[3].ifEmpty { null }, p[4].toBoolean(), p[5].toBoolean())
+        if (p.size < 6) return null
+        return CalcState(
+            p[0], p[1], p[2].toDoubleOrNull(), p[3].ifEmpty { null }, p[4].toBoolean(), p[5].toBoolean(),
+            p.getOrNull(6)?.toIntOrNull() ?: 0
+        )
     }
 
     private fun isBlank(s: CalcState) = s.display == "0" && s.expression.isEmpty() && s.operand1 == null
@@ -228,10 +239,11 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
 
     private var memory: Double = 0.0
 
-    val clearLabel: String get() = if (state.display != "0" && !state.waitingForOperand) "C" else "AC"
+    val clearLabel: String get() = "C"
 
     // --- Navigation actions ---
     fun openLayoutPicker() { currentScreen = Screen.LayoutPicker }
+    fun openHistory() { currentScreen = Screen.History }
     fun back() { currentScreen = Screen.Calculator }
 
     fun selectPreset(preset: LayoutPreset) {
@@ -399,6 +411,12 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun applyKey(key: CalcKey) {
+        applyKeyInner(key)
+        val editing = key in EDIT_KEYS
+        if (!editing && state.cursorFromEnd != 0) state = state.copy(cursorFromEnd = 0)
+    }
+
+    private fun applyKeyInner(key: CalcKey) {
         when (key) {
             CalcKey.N0 -> digit("0"); CalcKey.N1 -> digit("1"); CalcKey.N2 -> digit("2")
             CalcKey.N3 -> digit("3"); CalcKey.N4 -> digit("4"); CalcKey.N5 -> digit("5")
@@ -432,24 +450,41 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun editPos(s: CalcState) = (s.display.length - s.cursorFromEnd).coerceIn(0, s.display.length)
+
     private fun digit(d: String) {
         val s = state
-        state = s.copy(
-            display = when {
-                s.waitingForOperand || s.justEvaluated -> d
-                s.display == "0" -> d
-                s.display.length >= 12 -> s.display
-                else -> s.display + d
-            },
-            waitingForOperand = false, justEvaluated = false
-        )
+        if (s.waitingForOperand || s.justEvaluated || s.display.toDoubleOrNull() == null || s.display == "0") {
+            state = s.copy(display = d, waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0)
+            return
+        }
+        if (s.display.length >= 12) return
+        var pos = editPos(s)
+        if (s.display.startsWith("-") && pos == 0) pos = 1
+        state = s.copy(display = s.display.substring(0, pos) + d + s.display.substring(pos))
     }
 
     private fun decimal() {
         val s = state
-        val d = if (s.waitingForOperand || s.justEvaluated) "0." else s.display
-        if ("." in d) return
-        state = s.copy(display = "$d.", waitingForOperand = false, justEvaluated = false)
+        if (s.waitingForOperand || s.justEvaluated || s.display.toDoubleOrNull() == null) {
+            state = s.copy(display = "0.", waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0)
+            return
+        }
+        if ("." in s.display) return
+        val pos = editPos(s)
+        var left = s.display.substring(0, pos)
+        if (left.isEmpty() || left == "-") left += "0"
+        state = s.copy(display = left + "." + s.display.substring(pos))
+    }
+
+    fun setCursor(index: Int) {
+        val s = state
+        if (s.waitingForOperand || s.display.toDoubleOrNull() == null) return
+        state = s.copy(
+            cursorFromEnd = (s.display.length - index).coerceIn(0, s.display.length),
+            justEvaluated = false
+        )
+        normalizePages()
     }
 
     private fun operator(op: String) {
@@ -474,16 +509,17 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun clear() {
-        val s = state
-        if (s.display != "0" && !s.waitingForOperand) state = s.copy(display = "0")
-        else state = CalcState()
+        state = CalcState()
     }
 
     private fun backspace() {
         val s = state
         if (s.waitingForOperand || s.justEvaluated) return
-        state = s.copy(display = if (s.display.length <= 1) "0"
-        else s.display.dropLast(1).trimEnd('-').ifEmpty { "0" })
+        val pos = editPos(s)
+        if (pos <= 0) return
+        val next = s.display.removeRange(pos - 1, pos)
+        state = if (next.isEmpty() || next == "-") s.copy(display = "0", cursorFromEnd = 0)
+        else s.copy(display = next)
     }
 
     private fun percent() {

@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -33,7 +34,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mirlan.calculator.CalculatorViewModel
-import com.mirlan.calculator.HistoryEntry
 import com.mirlan.calculator.data.*
 import kotlin.math.roundToInt
 
@@ -59,7 +59,6 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
     var dragState by remember { mutableStateOf<DragState?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     var pickerSlot by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var showHistory by remember { mutableStateOf(false) }
 
 
     pickerSlot?.let { (pr, pc) ->
@@ -81,6 +80,13 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
             }
         }
     }
+
+    val blinkTransition = rememberInfiniteTransition(label = "blink")
+    val blink by blinkTransition.animateFloat(
+        initialValue = 1f, targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(520, easing = LinearEasing), RepeatMode.Reverse),
+        label = "blink"
+    )
 
     // Wiggle animation in edit mode
     val infiniteTransition = rememberInfiniteTransition(label = "wiggle")
@@ -135,7 +141,7 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     Spacer(Modifier.weight(1f))
                     TopIconBtn("fx", theme, active = vm.advanced) { vm.toggleAdvanced() }
                     Spacer(Modifier.width(8.dp))
-                    TopIconBtn("⟲", theme, active = showHistory) { showHistory = !showHistory }
+                    TopIconBtn("⟲", theme) { vm.openHistory() }
                 }
             }
 
@@ -143,18 +149,9 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
             if (!editMode) {
                 val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = vm.page) { vm.pages.size }
                 LaunchedEffect(pagerState.currentPage) { vm.selectPage(pagerState.currentPage) }
-                if (showHistory) {
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
-                        HistoryList(
-                            vm, theme, Modifier.fillMaxSize(),
-                            onPick = { },
-                            onCopy = { copyText(context, it) }
-                        )
-                    }
-                }
                 androidx.compose.foundation.pager.HorizontalPager(
                     state = pagerState,
-                    modifier = (if (showHistory) Modifier.height(0.dp) else Modifier.weight(1f)).fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 ) { i ->
                     val ps = vm.pages.getOrNull(i) ?: com.mirlan.calculator.CalcState()
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
@@ -168,6 +165,7 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
                         )
                         var menuOpen by remember { mutableStateOf(false) }
+                        var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
                         Box(Modifier.fillMaxWidth()) {
                         Text(
                             text = ps.display,
@@ -181,12 +179,32 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                             textAlign = TextAlign.End,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { layout = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .pointerInput(ps.display) {
-                                    detectTapGestures(onLongPress = { menuOpen = true })
-                                }
                                 .padding(horizontal = 24.dp, vertical = 4.dp)
+                                .pointerInput(ps.display) {
+                                    detectTapGestures(
+                                        onTap = { o ->
+                                            layout?.let { vm.setCursor(it.getOffsetForPosition(o)) }
+                                        },
+                                        onLongPress = { menuOpen = true }
+                                    )
+                                }
+                                .drawWithContent {
+                                    drawContent()
+                                    val l = layout
+                                    if (l != null && !ps.waitingForOperand && !ps.justEvaluated &&
+                                        ps.display.toDoubleOrNull() != null
+                                    ) {
+                                        val r = l.getCursorRect((ps.display.length - ps.cursorFromEnd).coerceIn(0, ps.display.length))
+                                        drawRect(
+                                            color = theme.displayText.copy(alpha = blink),
+                                            topLeft = androidx.compose.ui.geometry.Offset(r.left, r.top),
+                                            size = androidx.compose.ui.geometry.Size(2.dp.toPx(), r.height)
+                                        )
+                                    }
+                                }
                         )
                             Box(Modifier.align(Alignment.BottomEnd).padding(end = 24.dp)) {
                             androidx.compose.material3.DropdownMenu(
@@ -353,13 +371,7 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                                     editMode = editMode,
                                     activeOp = state.operator,
                                     waitingForOperand = state.waitingForOperand,
-                                    onClick = {
-                                        if (!editMode) {
-                                            if (showHistory && cell.key == CalcKey.Clear) vm.clearHistory()
-                                            else if (showHistory && cell.key == CalcKey.Backspace) vm.removeLastHistory()
-                                            else vm.onKey(cell.key)
-                                        }
-                                    }
+                                    onClick = { if (!editMode) vm.onKey(cell.key) }
                                 )
                             }
                         }
@@ -375,40 +387,10 @@ private fun readClipboard(context: android.content.Context): String {
     return cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString() ?: ""
 }
 
-private fun copyText(context: android.content.Context, text: String) {
+internal fun copyText(context: android.content.Context, text: String) {
     val cm = context.getSystemService(android.content.ClipboardManager::class.java)
     cm.setPrimaryClip(android.content.ClipData.newPlainText("result", text))
     android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
-}
-
-@Composable
-private fun HistoryList(
-    vm: CalculatorViewModel,
-    theme: CalcTheme,
-    modifier: Modifier,
-    onPick: (HistoryEntry) -> Unit,
-    onCopy: (String) -> Unit
-) {
-    androidx.compose.foundation.lazy.LazyColumn(
-        modifier = modifier.fillMaxWidth(),
-        reverseLayout = true,
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 4.dp)
-    ) {
-        items(vm.history.asReversed()) { e ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .pointerInput(e) {
-                        detectTapGestures(onTap = { onPick(e) }, onLongPress = { onCopy(e.result) })
-                    }
-                    .padding(vertical = 6.dp),
-                horizontalAlignment = Alignment.End
-            ) {
-                Text("${e.expr} =", color = theme.expressionText, fontSize = 15.sp)
-                Text(e.result, color = theme.displayText.copy(alpha = 0.8f), fontSize = 22.sp)
-            }
-        }
-    }
 }
 
 private val SCIENTIFIC_KEYS = listOf(
@@ -477,7 +459,7 @@ private fun RemovedTray(vm: CalculatorViewModel, theme: CalcTheme) {
 }
 
 @Composable
-private fun TopIconBtn(label: String, theme: com.mirlan.calculator.data.CalcTheme, active: Boolean = false, onClick: () -> Unit) {
+internal fun TopIconBtn(label: String, theme: com.mirlan.calculator.data.CalcTheme, active: Boolean = false, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(40.dp)
@@ -494,7 +476,7 @@ private fun TopIconBtn(label: String, theme: com.mirlan.calculator.data.CalcThem
 }
 
 @Composable
-private fun SmallBtn(label: String, bg: Color, textColor: Color, onClick: () -> Unit) {
+internal fun SmallBtn(label: String, bg: Color, textColor: Color, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .height(36.dp)

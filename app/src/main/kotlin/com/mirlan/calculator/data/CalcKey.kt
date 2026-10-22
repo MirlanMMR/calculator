@@ -6,7 +6,7 @@ enum class CalcKey(val defaultLabel: String) {
     Decimal("."),
     Plus("+"), Minus("−"), Multiply("×"), Divide("÷"),
     Equals("="),
-    Clear("AC"),
+    Clear("C"),
     Backspace("⌫"),
     Percent("%"),
     Negate("+/−"),

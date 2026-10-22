@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.mirlan.calculator.ui.CalculatorScreen
+import com.mirlan.calculator.ui.HistoryScreen
 import com.mirlan.calculator.ui.LayoutPickerScreen
 
 class MainActivity : ComponentActivity() {
@@ -22,6 +23,7 @@ class MainActivity : ComponentActivity() {
             when (vm.currentScreen) {
                 is Screen.Calculator   -> CalculatorScreen(vm)
                 is Screen.LayoutPicker -> LayoutPickerScreen(vm)
+                is Screen.History      -> HistoryScreen(vm)
             }
         }
     }

@@ -41,7 +41,7 @@ fun ShapeOption.toComposeShape(): Shape = when (shape) {
 
 fun ShapeOption.toMiniShape(): Shape = when (shape) {
     ButtonShape.Circle      -> CircleShape
-    ButtonShape.RoundedRect -> RoundedCornerShape((cornerDp / 3.5f).dp)
+    ButtonShape.RoundedRect -> RoundedCornerShape((cornerDp / 4.7f).dp)
     ButtonShape.Square      -> RoundedCornerShape(0.5.dp)
     ButtonShape.Hexagon     -> HexagonShape
 }

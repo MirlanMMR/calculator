@@ -10,6 +10,9 @@ import androidx.lifecycle.AndroidViewModel
 import com.mirlan.calculator.data.CalcKey
 import com.mirlan.calculator.data.KeyCell
 import com.mirlan.calculator.data.LayoutPreset
+import com.mirlan.calculator.data.LayoutSpec
+import com.mirlan.calculator.data.OpSide
+import com.mirlan.calculator.data.ZeroPos
 import com.mirlan.calculator.data.Presets
 import com.mirlan.calculator.data.ShapeOption
 import kotlin.math.E
@@ -38,6 +41,8 @@ data class CalcState(
 )
 
 class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
+
+    private companion object { const val MIN_PAGES = 3 }
 
     private val prefs = app.getSharedPreferences("calc_prefs", Context.MODE_PRIVATE)
 
@@ -117,6 +122,11 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     private val customGrids = mutableMapOf<String, List<List<KeyCell>>>()
 
     init {
+        if (prefs.getInt("layout_v", 0) < 2) {
+            val e = prefs.edit().putInt("layout_v", 2)
+            Presets.all.forEach { e.remove("grid_${it.id}") }
+            e.apply()
+        }
         Presets.all.forEach { p ->
             prefs.getString("grid_${p.id}", null)?.let { s -> decodeGrid(s)?.let { customGrids[p.id] = it } }
         }
@@ -141,11 +151,33 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     var editGrid by mutableStateOf<List<List<KeyCell>>>(emptyList())
         private set
 
+    var layoutSpec by mutableStateOf(
+        prefs.getString("layout", null)?.split(":")?.let { p ->
+            if (p.size != 2) null else {
+                val z = ZeroPos.entries.find { it.name == p[0] }
+                val o = OpSide.entries.find { it.name == p[1] }
+                if (z != null && o != null) LayoutSpec(z, o) else null
+            }
+        } ?: LayoutSpec(ZeroPos.BottomLeft, OpSide.Right)
+    )
+        private set
+
+    val baseGrid: List<List<KeyCell>>
+        get() = layoutSpec.generate()
+
+    fun selectLayout(spec: LayoutSpec) {
+        layoutSpec = spec
+        customGrids.clear()
+        val e = prefs.edit().putString("layout", "${spec.zero.name}:${spec.ops.name}")
+        Presets.all.forEach { e.remove("grid_${it.id}") }
+        e.apply()
+    }
+
     val activeGrid: List<List<KeyCell>>
         get() = when {
             editMode -> editGrid
             customGrids.containsKey(selectedPreset.id) -> customGrids[selectedPreset.id]!!
-            else -> selectedPreset.grid
+            else -> baseGrid
         }
 
     // --- Calc state ---
@@ -177,8 +209,9 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     private fun isBlank(s: CalcState) = s.display == "0" && s.expression.isEmpty() && s.operand1 == null
 
     private fun normalizePages() {
-        while (pages.size > 1 && page < pages.lastIndex && isBlank(pages.last()) && isBlank(pages[pages.lastIndex - 1]))
+        while (pages.size > MIN_PAGES && page < pages.lastIndex && isBlank(pages.last()) && isBlank(pages[pages.lastIndex - 1]))
             pages.removeAt(pages.lastIndex)
+        while (pages.size < MIN_PAGES) pages.add(CalcState())
         if (!isBlank(pages.last()) && pages.size < 5) pages.add(CalcState())
         prefs.edit()
             .putString("pages", pages.joinToString("\n") { encodePage(it) })
@@ -202,7 +235,6 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     fun selectPreset(preset: LayoutPreset) {
         selectedPreset = preset
         prefs.edit().putString("preset", preset.id).apply()
-        currentScreen = Screen.Calculator
     }
 
     // --- Edit mode actions ---
@@ -215,7 +247,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         val id = selectedPreset.id
         val trimmed = editGrid.dropWhile { row -> row.all { it.key == CalcKey.Empty } }
             .dropLastWhile { row -> row.all { it.key == CalcKey.Empty } }
-        if (trimmed == selectedPreset.grid) {
+        if (trimmed == baseGrid) {
             customGrids.remove(id)
             prefs.edit().remove("grid_$id").apply()
         } else {
@@ -275,7 +307,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun resetEdit() {
-        editGrid = selectedPreset.grid.map { it.toList() }
+        editGrid = baseGrid.map { it.toList() }
     }
 
     private fun reorder(keys: MutableList<CalcKey>, from: Int, to: Int) {
@@ -295,9 +327,12 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         val from = keys.indexOf(key)
         if (from == toCol || toCol !in keys.indices) return
         reorder(keys, from, toCol)
-        editGrid = editGrid.mapIndexed { i, row ->
-            if (i != r) row else row.mapIndexed { j, c -> c.copy(key = keys[j]) }
-        }
+        editGrid = normalizeGrid(
+            editGrid.mapIndexed { i, row ->
+                if (i != r) row else row.mapIndexed { j, c -> c.copy(key = keys[j]) }
+            },
+            zeroSpan()
+        )
     }
 
     // Pushes a key along its column (slots covering the same visual column).
@@ -315,14 +350,44 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         }
         val keys = g.mapIndexed { i, row -> row[slots[i]].key }.toMutableList()
         reorder(keys, r, toRow)
-        editGrid = g.mapIndexed { i, row ->
-            row.mapIndexed { j, cell -> if (j == slots[i]) cell.copy(key = keys[i]) else cell }
+        editGrid = normalizeGrid(
+            g.mapIndexed { i, row ->
+                row.mapIndexed { j, cell -> if (j == slots[i]) cell.copy(key = keys[i]) else cell }
+            },
+            zeroSpan()
+        )
+    }
+
+    private fun zeroSpan() = editGrid.flatten().firstOrNull { it.key == CalcKey.N0 }?.colSpan ?: 1
+
+    // The zero key keeps its width wherever it goes; rows are refilled to the full width.
+    private fun normalizeGrid(g: List<List<KeyCell>>, zs: Int): List<List<KeyCell>> {
+        val cols = selectedPreset.cols
+        val spill = ArrayDeque<CalcKey>()
+        val rows = g.map { row ->
+            val cells = row.map { it.copy(colSpan = if (it.key == CalcKey.N0) zs else 1) }.toMutableList()
+            var w = cells.sumOf { it.colSpan }
+            while (w > cols) {
+                var idx = cells.indexOfLast { it.key == CalcKey.Empty }
+                if (idx < 0) idx = cells.indexOfLast { it.key != CalcKey.N0 }
+                if (idx < 0) break
+                val c = cells.removeAt(idx)
+                w -= c.colSpan
+                if (c.key != CalcKey.Empty) spill.addLast(c.key)
+            }
+            cells
+        }
+        return rows.map { cells ->
+            val out = cells.toMutableList()
+            var w = out.sumOf { it.colSpan }
+            while (w < cols) { out.add(KeyCell(spill.removeFirstOrNull() ?: CalcKey.Empty)); w++ }
+            out
         }
     }
 
     // --- Key handling ---
     fun onKey(key: CalcKey) {
-        if (key == CalcKey.Clear && isBlank(state) && page < pages.lastIndex) {
+        if (key == CalcKey.Clear && isBlank(state) && page < pages.lastIndex && pages.size > MIN_PAGES) {
             pages.removeAt(page)
             normalizePages()
             return

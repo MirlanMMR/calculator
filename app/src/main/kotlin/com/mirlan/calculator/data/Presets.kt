@@ -212,5 +212,52 @@ object Presets {
         )
     )
 
-    val all = listOf(classic, material, system, retro, neon, nordic, dracula, light)
+    private fun themed(id: String, name: String, theme: CalcTheme) =
+        LayoutPreset(id = id, name = name, cols = 4, grid = classic.grid, theme = theme)
+
+    val sand = themed("sand", "Песок", CalcTheme(
+        background = Color(0xFFF4EBDD),
+        numBg = Color(0xFFFFFFFF), numText = Color(0xFF3B2A1A),
+        opBg = Color(0xFFC8702A), opText = Color.White,
+        fnBg = Color(0xFFE8DCC8), fnText = Color(0xFF5A4630),
+        eqBg = Color(0xFF8C4A1B), eqText = Color.White,
+        activeOpBg = Color(0xFFE59A56), activeOpText = Color.White,
+        displayText = Color(0xFF3B2A1A), expressionText = Color(0xFF9A8670),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val mint = themed("mint", "Мята", CalcTheme(
+        background = Color(0xFFE6F4EF),
+        numBg = Color(0xFFFFFFFF), numText = Color(0xFF12332A),
+        opBg = Color(0xFF1FA37A), opText = Color.White,
+        fnBg = Color(0xFFCFE8DF), fnText = Color(0xFF2D5A4B),
+        eqBg = Color(0xFF137A5A), eqText = Color.White,
+        activeOpBg = Color(0xFF5BC4A2), activeOpText = Color.White,
+        displayText = Color(0xFF12332A), expressionText = Color(0xFF6E9487),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val sunset = themed("sunset", "Закат", CalcTheme(
+        background = Color(0xFF1A1423),
+        numBg = Color(0xFF2A2036), numText = Color(0xFFF5E9F0),
+        opBg = Color(0xFFFF6B5A), opText = Color(0xFF1A1423),
+        fnBg = Color(0xFF3A2D48), fnText = Color(0xFFE2C9E8),
+        eqBg = Color(0xFFFFA25C), eqText = Color(0xFF1A1423),
+        activeOpBg = Color(0xFFFFFFFF), activeOpText = Color(0xFFFF6B5A),
+        displayText = Color(0xFFF5E9F0), expressionText = Color(0xFF8E7A9C),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val ocean = themed("ocean", "Океан", CalcTheme(
+        background = Color(0xFF06232B),
+        numBg = Color(0xFF0D3A46), numText = Color(0xFFE3F7F8),
+        opBg = Color(0xFF19C3C9), opText = Color(0xFF06232B),
+        fnBg = Color(0xFF114B59), fnText = Color(0xFF9FE3E6),
+        eqBg = Color(0xFF19C3C9), eqText = Color(0xFF06232B),
+        activeOpBg = Color(0xFFFFFFFF), activeOpText = Color(0xFF0D3A46),
+        displayText = Color(0xFFE3F7F8), expressionText = Color(0xFF4F8A93),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val all = listOf(classic, material, system, retro, neon, nordic, dracula, light, sand, mint, sunset, ocean)
 }

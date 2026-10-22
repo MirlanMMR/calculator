@@ -9,8 +9,8 @@ enum class ButtonShape { Circle, RoundedRect, Square, Hexagon }
 enum class ShapeOption(val label: String, val shape: ButtonShape, val cornerDp: Int) {
     Hexagon  ("⬡",  ButtonShape.Hexagon,      0),
     Circle   ("●",  ButtonShape.Circle,       0),
-    Soft     ("▢",  ButtonShape.RoundedRect, 20),
-    Sharp    ("⬜", ButtonShape.RoundedRect,   6),
+    Soft     ("▢",  ButtonShape.RoundedRect, 28),
+    Sharp    ("⬜", ButtonShape.RoundedRect,  12),
     Square   ("■",  ButtonShape.Square,        0),
 }
 

@@ -79,10 +79,12 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         val m = Regex("-?\\d+(\\.\\d+)?").find(text.replace(Regex("[\\s\u00A0]"), "").replace(',', '.')) ?: return
         val v = m.value.take(15)
         state = state.copy(display = v, waitingForOperand = false, justEvaluated = false)
+        normalizePages()
     }
 
     fun useHistory(e: HistoryEntry) {
         state = state.copy(display = e.result, justEvaluated = true, waitingForOperand = false)
+        normalizePages()
     }
 
     fun removeLastHistory() {
@@ -158,7 +160,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
                 val o = OpSide.entries.find { it.name == p[1] }
                 if (z != null && o != null) LayoutSpec(z, o) else null
             }
-        } ?: LayoutSpec(ZeroPos.BottomLeft, OpSide.Right)
+        } ?: LayoutSpec(ZeroPos.BottomCenter, OpSide.Right)
     )
         private set
 

@@ -85,8 +85,8 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
     // Wiggle animation in edit mode
     val infiniteTransition = rememberInfiniteTransition(label = "wiggle")
     val wiggle by infiniteTransition.animateFloat(
-        initialValue = -1.8f, targetValue = 1.8f,
-        animationSpec = infiniteRepeatable(tween(130, easing = LinearEasing), RepeatMode.Reverse),
+        initialValue = -3.5f, targetValue = 3.5f,
+        animationSpec = infiniteRepeatable(tween(120, easing = LinearEasing), RepeatMode.Reverse),
         label = "wiggle"
     )
 
@@ -116,7 +116,6 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SmallBtn("Отмена", Color(0xFF555555), Color.White) { vm.cancelEditMode() }
-                    Text("Конструктор", color = theme.displayText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     SmallBtn("Готово", theme.opBg, theme.opText) { vm.saveEditMode() }
                 }
             } else {
@@ -317,7 +316,7 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                             val label = if (cell.key == CalcKey.Clear) vm.clearLabel else cell.key.defaultLabel
                             val slot = Offset(rowStarts[rowIdx][colIdx] * cellStep, rowIdx * cellStepY)
                             val anim by animateOffsetAsState(
-                                slot, spring(stiffness = 500f), label = "slot"
+                                slot, spring(dampingRatio = 0.9f, stiffness = 380f), label = "slot"
                             )
                             val ds = dragState
                             val isDragging = ds?.key == cell.key

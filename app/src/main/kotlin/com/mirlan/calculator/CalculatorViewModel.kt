@@ -65,7 +65,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun record(expr: String, result: String) {
-        if (result == "Ошибка") return
+        if (result == "Err") return
         history.add(HistoryEntry(expr, result))
         while (history.size > 200) history.removeAt(0)
         saveHistory()
@@ -519,7 +519,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun fmt(v: Double): String {
-        if (v.isNaN()) return "Ошибка"
+        if (v.isNaN()) return "Err"
         if (v.isInfinite()) return if (v > 0) "∞" else "-∞"
         val a = abs(v)
         return when {

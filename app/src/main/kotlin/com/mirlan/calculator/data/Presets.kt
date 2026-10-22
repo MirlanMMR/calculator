@@ -7,7 +7,7 @@ object Presets {
 
     val classic = LayoutPreset(
         id = "classic",
-        name = "Классик",
+        name = "Classic",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.Clear), KeyCell(CalcKey.Backspace), KeyCell(CalcKey.Percent), KeyCell(CalcKey.Divide)),
@@ -31,7 +31,7 @@ object Presets {
 
     val material = LayoutPreset(
         id = "material",
-        name = "Материал",
+        name = "Material",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.Clear), KeyCell(CalcKey.Backspace), KeyCell(CalcKey.Percent), KeyCell(CalcKey.Divide)),
@@ -57,7 +57,7 @@ object Presets {
 
     val system = LayoutPreset(
         id = "system",
-        name = "Системный",
+        name = "System",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.MemClear), KeyCell(CalcKey.MemRecall), KeyCell(CalcKey.MemPlus), KeyCell(CalcKey.MemMinus)),
@@ -84,7 +84,7 @@ object Presets {
 
     val retro = LayoutPreset(
         id = "retro",
-        name = "Ретро",
+        name = "Retro",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.MemClear), KeyCell(CalcKey.MemRecall), KeyCell(CalcKey.MemPlus), KeyCell(CalcKey.MemMinus)),
@@ -110,7 +110,7 @@ object Presets {
 
     val neon = LayoutPreset(
         id = "neon",
-        name = "Неон",
+        name = "Neon",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.Clear), KeyCell(CalcKey.Backspace), KeyCell(CalcKey.Percent), KeyCell(CalcKey.Divide)),
@@ -136,7 +136,7 @@ object Presets {
 
     val nordic = LayoutPreset(
         id = "nordic",
-        name = "Нордик",
+        name = "Nordic",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.Clear), KeyCell(CalcKey.Backspace), KeyCell(CalcKey.Percent), KeyCell(CalcKey.Divide)),
@@ -162,7 +162,7 @@ object Presets {
 
     val dracula = LayoutPreset(
         id = "dracula",
-        name = "Дракула",
+        name = "Dracula",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.Clear), KeyCell(CalcKey.Backspace), KeyCell(CalcKey.Percent), KeyCell(CalcKey.Divide)),
@@ -188,7 +188,7 @@ object Presets {
 
     val light = LayoutPreset(
         id = "light",
-        name = "Светлый",
+        name = "Light",
         cols = 4,
         grid = listOf(
             listOf(KeyCell(CalcKey.Clear), KeyCell(CalcKey.Backspace), KeyCell(CalcKey.Percent), KeyCell(CalcKey.Divide)),
@@ -215,7 +215,7 @@ object Presets {
     private fun themed(id: String, name: String, theme: CalcTheme) =
         LayoutPreset(id = id, name = name, cols = 4, grid = classic.grid, theme = theme)
 
-    val sand = themed("sand", "Песок", CalcTheme(
+    val sand = themed("sand", "Sand", CalcTheme(
         background = Color(0xFFF4EBDD),
         numBg = Color(0xFFFFFFFF), numText = Color(0xFF3B2A1A),
         opBg = Color(0xFFC8702A), opText = Color.White,
@@ -226,7 +226,7 @@ object Presets {
         buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
     ))
 
-    val mint = themed("mint", "Мята", CalcTheme(
+    val mint = themed("mint", "Mint", CalcTheme(
         background = Color(0xFFE6F4EF),
         numBg = Color(0xFFFFFFFF), numText = Color(0xFF12332A),
         opBg = Color(0xFF1FA37A), opText = Color.White,
@@ -237,7 +237,7 @@ object Presets {
         buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
     ))
 
-    val sunset = themed("sunset", "Закат", CalcTheme(
+    val sunset = themed("sunset", "Sunset", CalcTheme(
         background = Color(0xFF1A1423),
         numBg = Color(0xFF2A2036), numText = Color(0xFFF5E9F0),
         opBg = Color(0xFFFF6B5A), opText = Color(0xFF1A1423),
@@ -248,7 +248,7 @@ object Presets {
         buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
     ))
 
-    val ocean = themed("ocean", "Океан", CalcTheme(
+    val ocean = themed("ocean", "Ocean", CalcTheme(
         background = Color(0xFF06232B),
         numBg = Color(0xFF0D3A46), numText = Color(0xFFE3F7F8),
         opBg = Color(0xFF19C3C9), opText = Color(0xFF06232B),
@@ -259,5 +259,52 @@ object Presets {
         buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
     ))
 
-    val all = listOf(classic, material, system, retro, neon, nordic, dracula, light, sand, mint, sunset, ocean)
+    val lavender = themed("lavender", "Lavender", CalcTheme(
+        background = Color(0xFFEEE9F7),
+        numBg = Color(0xFFFFFFFF), numText = Color(0xFF2A2140),
+        opBg = Color(0xFF7C5CD6), opText = Color.White,
+        fnBg = Color(0xFFDDD3F0), fnText = Color(0xFF4B3A78),
+        eqBg = Color(0xFF5B3FB0), eqText = Color.White,
+        activeOpBg = Color(0xFFA38AE8), activeOpText = Color.White,
+        displayText = Color(0xFF2A2140), expressionText = Color(0xFF8E82AB),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val rose = themed("rose", "Rose", CalcTheme(
+        background = Color(0xFFFBEAEE),
+        numBg = Color(0xFFFFFFFF), numText = Color(0xFF3D1F29),
+        opBg = Color(0xFFE0527A), opText = Color.White,
+        fnBg = Color(0xFFF4D3DC), fnText = Color(0xFF7A3D50),
+        eqBg = Color(0xFFB8325A), eqText = Color.White,
+        activeOpBg = Color(0xFFEE86A3), activeOpText = Color.White,
+        displayText = Color(0xFF3D1F29), expressionText = Color(0xFFA98390),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val sky = themed("sky", "Sky", CalcTheme(
+        background = Color(0xFFE8F2FB),
+        numBg = Color(0xFFFFFFFF), numText = Color(0xFF14283D),
+        opBg = Color(0xFF2F8FE0), opText = Color.White,
+        fnBg = Color(0xFFD2E4F5), fnText = Color(0xFF35577A),
+        eqBg = Color(0xFF1B6BB8), eqText = Color.White,
+        activeOpBg = Color(0xFF6DB4F0), activeOpText = Color.White,
+        displayText = Color(0xFF14283D), expressionText = Color(0xFF7C94AB),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val lemon = themed("lemon", "Lemon", CalcTheme(
+        background = Color(0xFFFBF7DC),
+        numBg = Color(0xFFFFFFFF), numText = Color(0xFF33300F),
+        opBg = Color(0xFFE0B400), opText = Color(0xFF33300F),
+        fnBg = Color(0xFFF1EBBB), fnText = Color(0xFF6A6320),
+        eqBg = Color(0xFFB38F00), eqText = Color.White,
+        activeOpBg = Color(0xFFF2CF3A), activeOpText = Color(0xFF33300F),
+        displayText = Color(0xFF33300F), expressionText = Color(0xFFA39D66),
+        buttonShape = ButtonShape.RoundedRect, cornerRadius = 14.dp, buttonGap = 10.dp
+    ))
+
+    val all = listOf(
+        classic, material, system, neon, nordic, dracula, sunset, ocean,
+        retro, light, sand, mint, lavender, rose, sky, lemon
+    )
 }

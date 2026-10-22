@@ -115,8 +115,8 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SmallBtn("Отмена", Color(0xFF555555), Color.White) { vm.cancelEditMode() }
-                    SmallBtn("Готово", theme.opBg, theme.opText) { vm.saveEditMode() }
+                    SmallBtn("✕", Color(0xFF555555), Color.White) { vm.cancelEditMode() }
+                    SmallBtn("✓", theme.opBg, theme.opText) { vm.saveEditMode() }
                 }
             } else {
                 Row(
@@ -195,11 +195,11 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                                 containerColor = theme.fnBg
                             ) {
                                 androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text("Копировать", color = theme.displayText) },
+                                    text = { Text("Copy", color = theme.displayText) },
                                     onClick = { copyText(context, ps.display); menuOpen = false }
                                 )
                                 androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text("Вставить", color = theme.displayText) },
+                                    text = { Text("Paste", color = theme.displayText) },
                                     onClick = { vm.pasteNumber(readClipboard(context)); menuOpen = false }
                                 )
                             }
@@ -378,7 +378,7 @@ private fun readClipboard(context: android.content.Context): String {
 private fun copyText(context: android.content.Context, text: String) {
     val cm = context.getSystemService(android.content.ClipboardManager::class.java)
     cm.setPrimaryClip(android.content.ClipData.newPlainText("result", text))
-    android.widget.Toast.makeText(context, "Скопировано", android.widget.Toast.LENGTH_SHORT).show()
+    android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
 }
 
 @Composable
@@ -471,8 +471,7 @@ private fun RemovedTray(vm: CalculatorViewModel, theme: CalcTheme) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SmallBtn("Сброс", theme.fnBg, theme.fnText) { vm.resetEdit() }
-        if (removed.isEmpty()) Text("Тап — убрать кнопку", color = theme.expressionText, fontSize = 13.sp)
+        SmallBtn("↺", theme.fnBg, theme.fnText) { vm.resetEdit() }
         removed.forEach { k -> SmallBtn(k.defaultLabel, theme.numBg, theme.numText) { vm.placeKey(k) } }
     }
 }

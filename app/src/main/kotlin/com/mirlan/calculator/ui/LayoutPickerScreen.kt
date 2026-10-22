@@ -57,12 +57,12 @@ fun LayoutPickerScreen(vm: CalculatorViewModel) {
                 Text("←", color = Color.White, fontSize = 20.sp)
             }
             Spacer(Modifier.width(16.dp))
-            Text("Вид", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text("Style", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         }
 
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
-                Label("Тема")
+                Label("Theme")
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -76,7 +76,7 @@ fun LayoutPickerScreen(vm: CalculatorViewModel) {
                     }
                 }
 
-                Label("Форма кнопок")
+                Label("Shape")
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -86,7 +86,7 @@ fun LayoutPickerScreen(vm: CalculatorViewModel) {
                     }
                 }
 
-                Label("Операторы")
+                Label("Operators")
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -98,7 +98,7 @@ fun LayoutPickerScreen(vm: CalculatorViewModel) {
                     }
                 }
 
-                Label("Раскладка")
+                Label("Layout")
             }
 
             items(2) { rowIdx ->

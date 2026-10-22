@@ -44,6 +44,8 @@ def vec(shapes, mono=False):
             p = f'<group android:pivotX="{rot[0]}" android:pivotY="{rot[1]}" android:rotation="{rot[2]}">{p}</group>'
         v.append("  " + p)
     v.append("</vector>")
+    v.insert(1, '  <group android:pivotX="54" android:pivotY="54" android:scaleX="0.9" android:scaleY="0.9">')
+    v.insert(len(v) - 1, "  </group>")
     return "\n".join(v) + "\n"
 
 os.makedirs(os.path.join(RES, "drawable"), exist_ok=True)

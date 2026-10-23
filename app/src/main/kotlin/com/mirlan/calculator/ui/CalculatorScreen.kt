@@ -8,7 +8,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -292,39 +295,36 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     )
                     .then(
                         if (editMode) Modifier.pointerInput(cellStep, cellStepY) {
-                            detectTapGestures(
-                                onTap = { o ->
-                                    val (r, c) = slotAt(o.x, o.y)
-                                    if (gridNow[r][c].key == CalcKey.Empty) pickerSlot = r to c
-                                    else vm.removeAt(r, c)
-                                },
-                                onLongPress = { o ->
-                                    val (r, c) = slotAt(o.x, o.y)
-                                    val k = gridNow[r][c].key
-                                    if (k == CalcKey.N0) vm.cycleSize(k)
-                                }
-                            )
-                        } else Modifier
-                    )
-                    .then(
-                        if (editMode) Modifier.pointerInput(cellStep, cellStepY) {
-                            detectDragGestures(
-                                onDragStart = { o ->
-                                    val (r, c) = slotAt(o.x, o.y)
-                                    val g = gridNow
-                                    if (g[r][c].key != CalcKey.Empty) {
-                                        val startVis = g[r].take(c).sumOf { it.colSpan }
-                                        dragState = DragState(
-                                            key = g[r][c].key, fx = o.x, fy = o.y,
-                                            grabX = o.x - startVis * cellStep, grabY = o.y - r * cellStepY
-                                        )
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val (r, c) = slotAt(down.position.x, down.position.y)
+                                val startKey = gridNow[r][c].key
+                                val slopChange = awaitTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                                if (slopChange == null) {
+                                    val up = currentEvent.changes.firstOrNull { it.id == down.id }
+                                    if (up != null && !up.pressed) {
+                                        val held = up.uptimeMillis - down.uptimeMillis >= viewConfiguration.longPressTimeoutMillis
+                                        when {
+                                            held && startKey == CalcKey.N0 -> vm.cycleSize(startKey)
+                                            held -> {}
+                                            startKey == CalcKey.Empty -> pickerSlot = r to c
+                                            else -> vm.removeAt(r, c)
+                                        }
                                     }
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragState?.let { cur ->
-                                        val fx = cur.fx + amount.x
-                                        val fy = cur.fy + amount.y
+                                    return@awaitEachGesture
+                                }
+                                if (startKey == CalcKey.Empty) return@awaitEachGesture
+                                val startVis = gridNow[r].take(c).sumOf { it.colSpan }
+                                dragState = DragState(
+                                    key = startKey, fx = down.position.x, fy = down.position.y,
+                                    grabX = down.position.x - startVis * cellStep, grabY = down.position.y - r * cellStepY
+                                )
+                                try {
+                                    drag(slopChange.id) { change ->
+                                        change.consume()
+                                        val cur = dragState ?: return@drag
+                                        val fx = change.position.x
+                                        val fy = change.position.y
                                         val g = gridNow
                                         val r0 = g.indexOfFirst { row -> row.any { it.key == cur.key } }
                                         if (r0 >= 0) {
@@ -351,10 +351,10 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                                         }
                                         dragState = cur.copy(fx = fx, fy = fy)
                                     }
-                                },
-                                onDragEnd = { dragState = null },
-                                onDragCancel = { dragState = null }
-                            )
+                                } finally {
+                                    dragState = null
+                                }
+                            }
                         } else Modifier
                     )
             ) {

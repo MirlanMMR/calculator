@@ -10,3 +10,5 @@ keystore.properties
 *.jks
 *.aab
 store-listing/mockups-src/shots/
+app/release/
+gradle/gradle-daemon-jvm.properties

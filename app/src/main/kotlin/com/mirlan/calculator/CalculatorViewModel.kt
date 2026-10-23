@@ -26,6 +26,7 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.tan
+import java.util.Locale
 
 data class HistoryEntry(val expr: String, val result: String)
 
@@ -38,13 +39,21 @@ data class CalcState(
     val operator: String? = null,
     val waitingForOperand: Boolean = false,
     val justEvaluated: Boolean = false,
-    val cursorFromEnd: Int = 0
-)
+    val cursorFromEnd: Int = 0,
+    val exact: Double? = null,
+    val fnExpr: String? = null
+) {
+    val topLine: String get() = listOf(expression, fnExpr).filter { !it.isNullOrEmpty() }.joinToString(" ")
+}
 
 class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MIN_PAGES = 3
+        val FN_KEYS = setOf(
+            CalcKey.Sqrt, CalcKey.Square, CalcKey.Inverse, CalcKey.Sin, CalcKey.Cos, CalcKey.Tan, CalcKey.Ln, CalcKey.Log,
+            CalcKey.MemPlus, CalcKey.MemMinus, CalcKey.MemStore, CalcKey.Empty
+        )
         val EDIT_KEYS = setOf(
             CalcKey.N0, CalcKey.N1, CalcKey.N2, CalcKey.N3, CalcKey.N4, CalcKey.N5,
             CalcKey.N6, CalcKey.N7, CalcKey.N8, CalcKey.N9, CalcKey.Decimal, CalcKey.Backspace
@@ -83,8 +92,18 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun pasteNumber(text: String) {
-        val m = Regex("-?\\d+(\\.\\d+)?").find(text.replace(Regex("[\\s\u00A0]"), "").replace(',', '.')) ?: return
-        val v = m.value.take(15)
+        val m = Regex("-?(\\d[\\d.,]*|[.,]\\d+)").find(text.replace(Regex("[\\s\u00A0]"), "")) ?: return
+        var raw = m.value
+        val sep = raw.lastIndexOfAny(charArrayOf('.', ','))
+        if (sep >= 0) {
+            val sepChar = raw[sep]
+            val other = if (sepChar == '.') ',' else '.'
+            val single = raw.count { it == sepChar } == 1
+            raw = if (single) raw.replace(other.toString(), "").replace(sepChar, '.')
+            else raw.replace(".", "").replace(",", "")
+        }
+        if (raw.startsWith(".")) raw = "0$raw" else if (raw.startsWith("-.")) raw = "-0" + raw.substring(1)
+        val v = raw.take(15)
         state = state.copy(display = v, waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0)
         normalizePages()
     }
@@ -412,6 +431,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun applyKey(key: CalcKey) {
         applyKeyInner(key)
+        if (key !in FN_KEYS && state.fnExpr != null) state = state.copy(fnExpr = null)
         val editing = key in EDIT_KEYS
         if (!editing && state.cursorFromEnd != 0) state = state.copy(cursorFromEnd = 0)
     }
@@ -431,16 +451,16 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
             CalcKey.Percent  -> percent()
             CalcKey.Negate   -> negate()
             CalcKey.MemClear  -> memory = 0.0
-            CalcKey.MemRecall -> { state = state.copy(display = fmt(memory), justEvaluated = true) }
-            CalcKey.MemPlus   -> memory += state.display.toDoubleOrNull() ?: 0.0
-            CalcKey.MemMinus  -> memory -= state.display.toDoubleOrNull() ?: 0.0
-            CalcKey.MemStore  -> memory = state.display.toDoubleOrNull() ?: 0.0
+            CalcKey.MemRecall -> result(memory)
+            CalcKey.MemPlus   -> cur(state)?.let { memory += it; entryDone() }
+            CalcKey.MemMinus  -> cur(state)?.let { memory -= it; entryDone() }
+            CalcKey.MemStore  -> cur(state)?.let { memory = it; entryDone() }
             CalcKey.Sqrt    -> unary({ "√($it)" }) { if (it < 0) Double.NaN else sqrt(it) }
             CalcKey.Square  -> unary({ "($it)²" }) { it * it }
             CalcKey.Inverse -> unary({ "1/($it)" }) { if (it == 0.0) Double.NaN else 1.0 / it }
-            CalcKey.Sin     -> unary({ "sin($it)" }) { sin(Math.toRadians(it)) }
-            CalcKey.Cos     -> unary({ "cos($it)" }) { cos(Math.toRadians(it)) }
-            CalcKey.Tan     -> unary({ "tan($it)" }) { if (abs(cos(Math.toRadians(it))) < 1e-12) Double.NaN else tan(Math.toRadians(it)) }
+            CalcKey.Sin     -> unary({ "sin($it)" }) { snap(sin(Math.toRadians(it))) }
+            CalcKey.Cos     -> unary({ "cos($it)" }) { snap(cos(Math.toRadians(it))) }
+            CalcKey.Tan     -> unary({ "tan($it)" }) { if (abs(cos(Math.toRadians(it))) < 1e-12) Double.NaN else snap(tan(Math.toRadians(it))) }
             CalcKey.Ln      -> unary({ "ln($it)" }) { if (it <= 0) Double.NaN else ln(it) }
             CalcKey.Log     -> unary({ "log($it)" }) { if (it <= 0) Double.NaN else log10(it) }
             CalcKey.Pi      -> constant(PI)
@@ -457,9 +477,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         if (s.waitingForOperand || s.justEvaluated || s.display.toDoubleOrNull() == null || s.display == "0") {
             state = s.copy(
                 display = d, waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0,
-                expression = if (s.justEvaluated) "" else s.expression,
-                operand1 = if (s.justEvaluated) null else s.operand1,
-                operator = if (s.justEvaluated) null else s.operator
+                expression = if (s.justEvaluated && s.operand1 == null) "" else s.expression
             )
             return
         }
@@ -474,9 +492,7 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         if (s.waitingForOperand || s.justEvaluated || s.display.toDoubleOrNull() == null) {
             state = s.copy(
                 display = "0.", waitingForOperand = false, justEvaluated = false, cursorFromEnd = 0,
-                expression = if (s.justEvaluated) "" else s.expression,
-                operand1 = if (s.justEvaluated) null else s.operand1,
-                operator = if (s.justEvaluated) null else s.operator
+                expression = if (s.justEvaluated && s.operand1 == null) "" else s.expression
             )
             return
         }
@@ -499,23 +515,24 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun operator(op: String) {
         val s = state
-        val cur = s.display.toDoubleOrNull() ?: 0.0
+        val cur = cur(s) ?: 0.0
         val (res, expr) = if (s.operand1 != null && s.operator != null && !s.waitingForOperand)
             Pair(compute(s.operand1, cur, s.operator), "${fmt(compute(s.operand1, cur, s.operator))} $op")
         else Pair(cur, "${fmt(cur)} $op")
         state = s.copy(display = fmt(res), expression = expr, operand1 = res, operator = op,
-            waitingForOperand = true, justEvaluated = false)
+            waitingForOperand = true, justEvaluated = false, exact = res)
     }
 
     private fun equals() {
         val s = state
         val op1 = s.operand1 ?: return
         val op = s.operator ?: return
-        val op2 = s.display.toDoubleOrNull() ?: 0.0
+        val op2 = cur(s) ?: 0.0
         val res = compute(op1, op2, op)
-        record("${s.expression} ${fmt(op2)}", fmt(res))
-        state = s.copy(display = fmt(res), expression = "${s.expression} ${fmt(op2)} =",
-            operand1 = null, operator = null, waitingForOperand = false, justEvaluated = true)
+        val operandText = s.fnExpr ?: fmt(op2)
+        record("${s.expression} $operandText", fmt(res))
+        state = s.copy(display = fmt(res), expression = "${s.expression} $operandText =", fnExpr = null,
+            operand1 = null, operator = null, waitingForOperand = false, justEvaluated = true, exact = res)
     }
 
     private fun clear() {
@@ -534,28 +551,45 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun percent() {
         val s = state
-        val v = s.display.toDoubleOrNull() ?: return
-        state = s.copy(display = fmt(if (s.operand1 != null) v / 100.0 * s.operand1!! else v / 100.0))
+        val v = cur(s) ?: return
+        val base = s.operand1
+        val r = if (base != null && (s.operator == "+" || s.operator == "−")) v / 100.0 * base else v / 100.0
+        state = s.copy(display = fmt(r), justEvaluated = true, exact = r)
     }
 
     private fun negate() {
         val s = state
-        val v = s.display.toDoubleOrNull() ?: return
-        state = s.copy(display = fmt(-v))
+        val v = cur(s) ?: return
+        if (v == 0.0 && s.display == "0") return
+        val d = if (s.display.startsWith("-")) s.display.drop(1) else "-" + s.display
+        state = s.copy(display = d, exact = s.exact?.let { -it })
     }
 
     private fun unary(expr: (String) -> String, f: (Double) -> Double) {
-        val v = state.display.toDoubleOrNull() ?: return
-        var r = f(v)
-        if (abs(r) < 1e-12) r = 0.0
+        val v = cur(state) ?: return
+        val r = f(v)
         val out = fmt(r)
-        record(expr(fmt(v)), out)
-        state = state.copy(display = out, justEvaluated = true, waitingForOperand = false)
+        val shown = expr(state.fnExpr ?: fmt(v))
+        record(shown, out)
+        state = state.copy(display = out, justEvaluated = true, waitingForOperand = false, exact = r, fnExpr = shown,
+            expression = if (state.operand1 == null) "" else state.expression)
     }
 
-    private fun constant(v: Double) {
-        state = state.copy(display = fmt(v), justEvaluated = true, waitingForOperand = false)
+    private fun constant(v: Double) = result(v)
+
+    private fun result(v: Double) {
+        state = state.copy(display = fmt(v), justEvaluated = true, waitingForOperand = false, exact = v)
     }
+
+    private fun entryDone() {
+        state = state.copy(justEvaluated = true)
+    }
+
+    private fun snap(x: Double) = if (abs(x) < 1e-12) 0.0 else x
+
+    // Full-precision value behind the display (the display itself is rounded); falls back to parsing it once edited.
+    private fun cur(s: CalcState): Double? =
+        s.exact?.takeIf { it.isFinite() && s.display == fmt(it) } ?: s.display.toDoubleOrNull()
 
     private fun compute(a: Double, b: Double, op: String) = when (op) {
         "+" -> a + b; "−" -> a - b; "×" -> a * b
@@ -569,10 +603,10 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         if (v.isInfinite()) return if (v > 0) "∞" else "-∞"
         val a = abs(v)
         return when {
-            a >= 1e12 || (a < 1e-6 && a > 0) -> String.format("%.4e", v)
+            a >= 1e12 || (a < 1e-6 && a > 0) -> String.format(Locale.ROOT, "%.4e", v)
             v == floor(v) && a < 1e12 -> v.toLong().toString()
             else -> v.toBigDecimal().stripTrailingZeros().toPlainString()
-                .let { if (it.length > 12) String.format("%.8g", v).trimEnd('0').trimEnd('.') else it }
+                .let { if (it.length > 12) String.format(Locale.ROOT, "%.8g", v).let { g -> if ('.' in g && 'e' !in g) g.trimEnd('0').trimEnd('.') else g } else it }
         }
     }
 }

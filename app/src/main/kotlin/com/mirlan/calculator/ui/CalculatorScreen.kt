@@ -156,7 +156,7 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     val ps = vm.pages.getOrNull(i) ?: com.mirlan.calculator.CalcState()
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
                         Text(
-                            text = ps.expression,
+                            text = ps.topLine,
                             color = theme.expressionText,
                             fontSize = 20.sp,
                             textAlign = TextAlign.End,

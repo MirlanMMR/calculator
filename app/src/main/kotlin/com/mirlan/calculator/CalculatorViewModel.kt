@@ -30,7 +30,19 @@ import java.util.Locale
 
 data class HistoryEntry(val expr: String, val result: String)
 
-sealed class Screen { object Calculator : Screen(); object LayoutPicker : Screen(); object History : Screen() }
+const val MAX_FAVORITES = 10
+
+data class Favorite(
+    val name: String,
+    val presetId: String,
+    val shape: ShapeOption,
+    val layout: LayoutSpec,
+    val grid: List<List<KeyCell>>
+)
+
+sealed class Screen {
+    object Calculator : Screen(); object LayoutPicker : Screen(); object History : Screen(); object Favorites : Screen()
+}
 
 data class CalcState(
     val display: String = "0",
@@ -276,10 +288,13 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
         editMode = true
     }
 
+    private fun trimGrid(g: List<List<KeyCell>>) =
+        g.dropWhile { row -> row.all { it.key == CalcKey.Empty } }
+            .dropLastWhile { row -> row.all { it.key == CalcKey.Empty } }
+
     fun saveEditMode() {
         val id = selectedPreset.id
-        val trimmed = editGrid.dropWhile { row -> row.all { it.key == CalcKey.Empty } }
-            .dropLastWhile { row -> row.all { it.key == CalcKey.Empty } }
+        val trimmed = trimGrid(editGrid)
         if (trimmed == baseGrid) {
             customGrids.remove(id)
             prefs.edit().remove("grid_$id").apply()
@@ -417,6 +432,94 @@ class CalculatorViewModel(app: Application) : AndroidViewModel(app) {
             out
         }
     }
+
+    // --- Favorites ---
+    val favorites = mutableStateListOf<Favorite>()
+
+    init {
+        prefs.getString("favorites", null)?.lines()?.forEach { l ->
+            val p = l.split("\t")
+            if (p.size != 5) return@forEach
+            val preset = Presets.all.find { it.id == p[1] } ?: return@forEach
+            val shape = ShapeOption.entries.find { it.name == p[2] } ?: return@forEach
+            val lp = p[3].split(":")
+            val zero = ZeroPos.entries.find { it.name == lp.getOrNull(0) } ?: return@forEach
+            val ops = OpSide.entries.find { it.name == lp.getOrNull(1) } ?: return@forEach
+            val grid = decodeGrid(p[4]) ?: return@forEach
+            favorites.add(Favorite(p[0], preset.id, shape, LayoutSpec(zero, ops), grid))
+        }
+    }
+
+    private fun signature(presetId: String, shape: ShapeOption, layout: LayoutSpec, grid: List<List<KeyCell>>) =
+        "$presetId/${shape.name}/${layout.zero.name}:${layout.ops.name}/${encodeGrid(grid)}"
+
+    // Index of the favorite that matches what is on screen, or -1.
+    fun currentFavoriteIndex(): Int {
+        val cur = signature(selectedPreset.id, selectedShape, layoutSpec, trimGrid(activeGrid))
+        return favorites.indexOfFirst { signature(it.presetId, it.shape, it.layout, it.grid) == cur }
+    }
+
+    private fun persistFavorites() {
+        prefs.edit().putString("favorites", favorites.joinToString("\n") {
+            listOf(it.name, it.presetId, it.shape.name, "${it.layout.zero.name}:${it.layout.ops.name}", encodeGrid(it.grid))
+                .joinToString("\t")
+        }).apply()
+    }
+
+    // Heart in the constructor: adds what is on screen to favorites, or removes it if already there.
+    fun toggleFavorite(name: String): String {
+        val idx = currentFavoriteIndex()
+        if (idx >= 0) {
+            favorites.removeAt(idx)
+            persistFavorites()
+            return "Removed from favorites"
+        }
+        if (favorites.size >= MAX_FAVORITES) return "Favorites full ($MAX_FAVORITES)"
+        val clean = name.replace(Regex("[\\t\\r\\n]"), " ").trim().take(20)
+        favorites.add(
+            Favorite(clean.ifEmpty { "Calculator ${favorites.size + 1}" }, selectedPreset.id, selectedShape, layoutSpec, trimGrid(activeGrid))
+        )
+        persistFavorites()
+        return "Saved to favorites"
+    }
+
+    fun applyFavorite(f: Favorite) {
+        selectedPreset = Presets.all.find { it.id == f.presetId } ?: return
+        selectedShape = f.shape
+        layoutSpec = f.layout
+        customGrids.clear()
+        val e = prefs.edit()
+            .putString("preset", f.presetId)
+            .putString("shape", f.shape.name)
+            .putString("layout", "${f.layout.zero.name}:${f.layout.ops.name}")
+        Presets.all.forEach { e.remove("grid_${it.id}") }
+        if (f.grid != baseGrid) {
+            customGrids[f.presetId] = f.grid
+            e.putString("grid_${f.presetId}", encodeGrid(f.grid))
+        }
+        e.apply()
+    }
+
+    fun removeFavorite(f: Favorite) {
+        favorites.remove(f)
+        persistFavorites()
+    }
+
+    // next = finger moved left. Returns the name of the favorite switched to, or null at the ends.
+    fun swipeFavorite(next: Boolean): String? {
+        if (favorites.isEmpty()) return null
+        val cur = currentFavoriteIndex()
+        val target = when {
+            cur < 0 -> if (next) 0 else favorites.lastIndex
+            next -> cur + 1
+            else -> cur - 1
+        }
+        if (target !in favorites.indices) return null
+        applyFavorite(favorites[target])
+        return favorites[target].name
+    }
+
+    fun openFavorites() { currentScreen = Screen.Favorites }
 
     // --- Key handling ---
     fun onKey(key: CalcKey) {

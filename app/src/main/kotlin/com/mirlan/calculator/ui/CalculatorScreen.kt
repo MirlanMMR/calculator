@@ -33,6 +33,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import com.mirlan.calculator.CalculatorViewModel
 import com.mirlan.calculator.data.*
 import kotlin.math.roundToInt
@@ -59,6 +62,7 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
     var dragState by remember { mutableStateOf<DragState?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     var pickerSlot by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var favName by remember(editMode) { mutableStateOf("") }
 
 
     pickerSlot?.let { (pr, pc) ->
@@ -118,10 +122,17 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SmallBtn("✕", Color(0xFF555555), Color.White) { vm.cancelEditMode() }
+                    Spacer(Modifier.width(8.dp))
+                    NameField(favName, { favName = it }, theme, blink, Modifier.width(110.dp))
+                    Spacer(Modifier.weight(1f))
+                    val saved = vm.currentFavoriteIndex() >= 0
+                    TopIconBox(theme, active = saved, onClick = {
+                        android.widget.Toast.makeText(context, vm.toggleFavorite(favName), android.widget.Toast.LENGTH_SHORT).show()
+                    }) { c -> HeartIcon(filled = saved, color = c) }
+                    Spacer(Modifier.width(28.dp))
                     SmallBtn("✓", theme.opBg, theme.opText) { vm.saveEditMode() }
                 }
             } else {
@@ -136,6 +147,11 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     Spacer(Modifier.width(8.dp))
                     // Edit mode
                     TopIconBtn("✎", theme) { vm.enterEditMode() }
+                    Spacer(Modifier.width(8.dp))
+                    val isFav = vm.currentFavoriteIndex() >= 0
+                    TopIconBox(theme, active = isFav, onClick = { vm.openFavorites() }) { c ->
+                        HeartIcon(filled = isFav, color = c)
+                    }
                     Spacer(Modifier.weight(1f))
                     PageDots(vm.pages.size, vm.page, theme)
                     Spacer(Modifier.weight(1f))
@@ -258,6 +274,22 @@ fun CalculatorScreen(vm: CalculatorViewModel) {
                     .fillMaxWidth()
                     .padding(start = gap, end = gap, bottom = gap + 16.dp)
                     .height(totalH)
+                    .then(
+                        if (!editMode && vm.favorites.isNotEmpty()) Modifier.pointerInput(Unit) {
+                            var total = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { total = 0f },
+                                onHorizontalDrag = { change, dx -> change.consume(); total += dx },
+                                onDragEnd = {
+                                    if (Math.abs(total) > 72.dp.toPx()) {
+                                        vm.swipeFavorite(next = total < 0)?.let {
+                                            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            )
+                        } else Modifier
+                    )
                     .then(
                         if (editMode) Modifier.pointerInput(cellStep, cellStepY) {
                             detectTapGestures(
@@ -459,7 +491,63 @@ private fun RemovedTray(vm: CalculatorViewModel, theme: CalcTheme) {
 }
 
 @Composable
-internal fun TopIconBtn(label: String, theme: com.mirlan.calculator.data.CalcTheme, active: Boolean = false, onClick: () -> Unit) {
+internal fun TopIconBtn(label: String, theme: CalcTheme, active: Boolean = false, onClick: () -> Unit) {
+    TopIconBox(theme, active, onClick) { c -> Text(label, color = c, fontSize = 18.sp) }
+}
+
+@Composable
+private fun NameField(value: String, onChange: (String) -> Unit, theme: CalcTheme, blink: Float, modifier: Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    Box(
+        modifier = modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(theme.fnBg)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { focusRequester.requestFocus() }
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        androidx.compose.foundation.text.BasicTextField(
+            value = value,
+            onValueChange = { onChange(it.replace(Regex("[\\t\\r\\n]"), " ").take(20)) },
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = theme.fnText, fontSize = 15.sp),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(theme.fnText),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focusManager.clearFocus() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .onFocusChanged { focused = it.isFocused },
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!focused) Box(
+                                Modifier.width(2.dp).height(18.dp).background(theme.fnText.copy(alpha = blink))
+                            )
+                            Text(
+                                "Name",
+                                color = theme.fnText.copy(alpha = 0.45f),
+                                fontSize = 15.sp,
+                                modifier = Modifier.padding(start = if (focused) 0.dp else 4.dp)
+                            )
+                        }
+                    }
+                    inner()
+                }
+            }
+        )
+    }
+}
+
+@Composable
+internal fun TopIconBox(theme: CalcTheme, active: Boolean = false, onClick: () -> Unit, content: @Composable (Color) -> Unit) {
     Box(
         modifier = Modifier
             .size(40.dp)
@@ -471,7 +559,7 @@ internal fun TopIconBtn(label: String, theme: com.mirlan.calculator.data.CalcThe
             ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = if (active) theme.opText else theme.fnText, fontSize = 18.sp)
+        content(if (active) theme.opText else theme.fnText)
     }
 }
 
